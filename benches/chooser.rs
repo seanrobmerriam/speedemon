@@ -45,11 +45,7 @@ fn build_warm_chooser() -> speedemon::chooser::AlgorithmChooser {
         ))),
     ];
 
-    let config = BanditConfig {
-        alpha: 0.3,
-        lazy_inversion_threshold: 50,
-        regularization: 1.0,
-    };
+    let config = BanditConfig::with(0.3, 50, 1.0);
 
     let (chooser, _handle) = rt.block_on(async {
         let (c, h) = AlgorithmChooserBuilder::new()
@@ -58,10 +54,7 @@ fn build_warm_chooser() -> speedemon::chooser::AlgorithmChooser {
             .add_algorithm(algorithms[2].clone())
             .add_algorithm(algorithms[3].clone())
             .bandit_config(config)
-            .feature_config(FeatureConfig {
-                rate_ceiling: 1_000_000.0,
-                max_concurrency: 1_000_000.0,
-            })
+            .feature_config(FeatureConfig::with(1_000_000.0, 1_000_000.0))
             .build();
         (c, h)
     });
@@ -110,10 +103,7 @@ fn chooser_hot_path(c: &mut Criterion) {
 }
 
 fn feature_extraction(c: &mut Criterion) {
-    let extractor = FeatureExtractor::new(FeatureConfig {
-        rate_ceiling: 1_000_000.0,
-        max_concurrency: 1_000.0,
-    });
+    let extractor = FeatureExtractor::new(FeatureConfig::with(1_000_000.0, 1_000.0));
     // Populate the per-client ring once.
     for i in 0..20u64 {
         let _ = extractor.extract(&warm_request_context(7, 1_000_000_000_000 + i * 1_000_000));
@@ -129,14 +119,7 @@ fn feature_extraction(c: &mut Criterion) {
 }
 
 fn bandit_select(c: &mut Criterion) {
-    let bandit = LinUCBBandit::new(
-        4,
-        BanditConfig {
-            alpha: 0.3,
-            lazy_inversion_threshold: 50,
-            regularization: 1.0,
-        },
-    );
+    let bandit = LinUCBBandit::new(4, BanditConfig::with(0.3, 50, 1.0));
     // Warm up so the inverse is cached.
     for _ in 0..200 {
         let x: [f64; FEATURE_DIM] = [0.05, 0.1, 0.0, 0.5, 0.3, 0.4, 0.1];

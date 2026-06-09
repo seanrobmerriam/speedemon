@@ -10,7 +10,16 @@ use super::r#trait::ClientClass;
 
 pub const FEATURE_DIM: usize = 7;
 
+/// Tunable parameters for the request feature extractor.
+///
+/// ```
+/// use speedemon::chooser::features::FeatureConfig;
+///
+/// let cfg = FeatureConfig::default();
+/// assert!(cfg.rate_ceiling > 0.0);
+/// ```
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FeatureConfig {
     pub rate_ceiling: f64,
     pub max_concurrency: f64,
@@ -25,6 +34,20 @@ impl Default for FeatureConfig {
     }
 }
 
+impl FeatureConfig {
+    /// Build a `FeatureConfig` overriding one or more fields of the default.
+    ///
+    /// Use this instead of a struct expression because `FeatureConfig` is
+    /// `#[non_exhaustive]`.
+    pub fn with(rate_ceiling: f64, max_concurrency: f64) -> Self {
+        Self {
+            rate_ceiling,
+            max_concurrency,
+        }
+    }
+}
+
+#[derive(Debug)]
 struct ClientState {
     timestamps: VecDeque<u64>,
 }
@@ -85,6 +108,7 @@ impl ClientState {
     }
 }
 
+#[derive(Debug)]
 pub struct FeatureExtractor {
     config: FeatureConfig,
     client_states: Arc<DashMap<u64, ClientState>>,

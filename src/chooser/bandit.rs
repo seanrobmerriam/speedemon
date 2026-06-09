@@ -4,7 +4,16 @@ use nalgebra::{DMatrix, DVector};
 
 use super::features::FEATURE_DIM;
 
+/// Tunable parameters for the LinUCB contextual bandit.
+///
+/// ```
+/// use speedemon::chooser::bandit::BanditConfig;
+///
+/// let cfg = BanditConfig::default();
+/// assert!(cfg.alpha > 0.0);
+/// ```
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct BanditConfig {
     pub alpha: f64,
     pub lazy_inversion_threshold: usize,
@@ -17,6 +26,24 @@ impl Default for BanditConfig {
             alpha: 0.3,
             lazy_inversion_threshold: 50,
             regularization: 1.0,
+        }
+    }
+}
+
+impl BanditConfig {
+    /// Build a `BanditConfig` overriding one or more fields of the default.
+    ///
+    /// Use this instead of a struct expression because `BanditConfig` is
+    /// `#[non_exhaustive]`.
+    pub fn with(
+        alpha: f64,
+        lazy_inversion_threshold: usize,
+        regularization: f64,
+    ) -> Self {
+        Self {
+            alpha,
+            lazy_inversion_threshold,
+            regularization,
         }
     }
 }
@@ -86,7 +113,21 @@ pub struct LinUCBBandit {
     arms: Vec<RwLock<ArmState>>,
 }
 
+impl std::fmt::Debug for LinUCBBandit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LinUCBBandit")
+            .field("num_arms", &self.arms.len())
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
+}
+
 impl LinUCBBandit {
+    /// Build a LinUCB bandit with `num_arms` arms.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `num_arms == 0`.
     pub fn new(num_arms: usize, config: BanditConfig) -> Self {
         assert!(num_arms > 0, "bandit requires at least one arm");
         let arms = (0..num_arms)

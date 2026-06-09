@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::types::{Algorithm, RateLimitResult, RateLimiter, WindowConfig};
 
+#[derive(Debug)]
 struct FixedWindowState {
     count: u64,
     window_start: Instant,
@@ -46,6 +47,21 @@ impl FixedWindowState {
     }
 }
 
+/// Fixed-window counter rate limiter.
+///
+/// Each key has a counter that resets at the start of each `window_size`
+/// interval. Allows up to `max_requests` per window.
+///
+/// ```
+/// use std::time::Duration;
+/// use speedemon::{FixedWindow, RateLimiter, WindowConfig};
+///
+/// let limiter = FixedWindow::new(WindowConfig::new(2, Duration::from_secs(60)));
+/// assert!(limiter.check("client1").allowed);
+/// assert!(limiter.check("client1").allowed);
+/// assert!(!limiter.check("client1").allowed);
+/// ```
+#[derive(Debug)]
 pub struct FixedWindow {
     config: WindowConfig,
     windows: Mutex<HashMap<String, FixedWindowState>>,

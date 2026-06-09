@@ -12,7 +12,10 @@ use tokio::sync::mpsc;
 use bandit::{BanditConfig, LinUCBBandit};
 use features::{FeatureConfig, FeatureExtractor};
 use observer::{spawn_observer, ObserverMessage, RewardConfig, RewardEvent};
-use r#trait::{Decision, RateLimiter, RequestContext};
+pub use r#trait::{
+    ClientClass, Decision, FixedWindowAdapter, LeakyBucketAdapter, RateLimiter, RequestContext,
+    SlidingWindowAdapter, TokenBucketAdapter,
+};
 
 pub struct AlgorithmChooser {
     algorithms: Vec<Arc<dyn RateLimiter>>,
@@ -20,6 +23,16 @@ pub struct AlgorithmChooser {
     features: Arc<FeatureExtractor>,
     reward_tx: mpsc::Sender<ObserverMessage>,
     event_counter: AtomicU64,
+}
+
+impl std::fmt::Debug for AlgorithmChooser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlgorithmChooser")
+            .field("num_algorithms", &self.algorithms.len())
+            .field("bandit", &*self.bandit)
+            .field("features", &*self.features)
+            .finish_non_exhaustive()
+    }
 }
 
 impl AlgorithmChooser {
@@ -112,6 +125,11 @@ impl AlgorithmChooserBuilder {
         self
     }
 
+    /// Build the chooser and spawn its reward observer task.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no algorithms were added via [`Self::add_algorithm`].
     pub fn build(self) -> (AlgorithmChooser, tokio::task::JoinHandle<()>) {
         assert!(
             !self.algorithms.is_empty(),

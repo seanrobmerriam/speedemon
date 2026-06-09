@@ -8,7 +8,17 @@ use super::bandit::LinUCBBandit;
 use super::features::FEATURE_DIM;
 use super::r#trait::Decision;
 
+/// Tunable parameters for the reward signal the chooser uses to learn.
+///
+/// ```
+/// use std::time::Duration;
+/// use speedemon::chooser::observer::RewardConfig;
+///
+/// let cfg = RewardConfig::default();
+/// assert_eq!(cfg.event_ttl, Duration::from_secs(60));
+/// ```
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RewardConfig {
     pub goodput_weight: f64,
     pub false_positive_weight: f64,

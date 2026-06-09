@@ -1,3 +1,100 @@
+//! # speedemon
+//!
+//! A modern, thread-safe rate limiting library for Rust featuring four
+//! industry-standard algorithms with composable multi-limiter support and a
+//! contextual bandit-driven algorithm chooser.
+//!
+//! ## Algorithms
+//!
+//! - [`TokenBucket`] — burst-tolerant, refills at a fixed rate.
+//! - [`LeakyBucket`] — constant outflow, queue-based.
+//! - [`SlidingWindow`] — rolling window of request timestamps.
+//! - [`FixedWindow`] — counter per fixed time bucket.
+//!
+//! All four implement the [`RateLimiter`] trait and can be combined into a
+//! [`RateLimiterSuite`] via the builder, or fed to [`chooser::AlgorithmChooser`]
+//! to let a contextual bandit pick the best algorithm per request.
+//!
+//! ## Quick start — a single limiter
+//!
+//! ```
+//! use std::time::Duration;
+//! use speedemon::{TokenBucket, RateLimiter, BucketConfig};
+//!
+//! // 5-request burst capacity, refills 1 token / second.
+//! let limiter = TokenBucket::new(BucketConfig::new(5, 1.0));
+//!
+//! assert!(limiter.check("client1").allowed);
+//! assert!(limiter.check("client1").allowed);
+//! ```
+//!
+//! ## Composing multiple limiters
+//!
+//! [`RateLimiterSuite`] applies every limiter to every key and reports the
+//! most restrictive answer:
+//!
+//! ```
+//! use std::time::Duration;
+//! use speedemon::{RateLimiterSuite, RateLimiter, BucketConfig, WindowConfig};
+//!
+//! let suite = RateLimiterSuite::builder()
+//!     .token_bucket(BucketConfig::new(100, 10.0))
+//!     .fixed_window(WindowConfig::new(10, Duration::from_secs(60)))
+//!     .build();
+//!
+//! let result = suite.check("client1");
+//! assert!(result.allowed);
+//! ```
+//!
+//! ## Adaptive algorithm selection
+//!
+//! The [`chooser::AlgorithmChooser`] uses a LinUCB contextual bandit to pick
+//! the best limiter per [`chooser::RequestContext`], with a Tokio-based
+//! observer that learns from observed decisions and (optional) false-positive
+//! and false-negative signals:
+//!
+//! ```
+//! use std::sync::Arc;
+//! use speedemon::chooser::{
+//!     AlgorithmChooserBuilder, RateLimiter as ChooserLimiter,
+//!     TokenBucketAdapter, FixedWindowAdapter, Decision, RequestContext,
+//!     ClientClass,
+//! };
+//! use speedemon::{BucketConfig, WindowConfig};
+//! use std::time::Duration;
+//!
+//! # async fn doc() {
+//! let (chooser, _handle) = AlgorithmChooserBuilder::new()
+//!     .add_algorithm(Arc::new(TokenBucketAdapter::new(BucketConfig::new(
+//!         100, 10.0,
+//!     ))))
+//!     .add_algorithm(Arc::new(FixedWindowAdapter::new(WindowConfig::new(
+//!         100, Duration::from_secs(60),
+//!     ))))
+//!     .build();
+//!
+//! let ctx = RequestContext {
+//!     client_id: 1,
+//!     timestamp_ns: 0,
+//!     endpoint_hash: 0,
+//!     client_class: ClientClass::ApiKey,
+//!     in_flight: 0,
+//! };
+//! assert_eq!(chooser.check(&ctx), Decision::Allow);
+//! # }
+//! ```
+//!
+//! ## Error handling
+//!
+//! Configuration constructors come in two flavors:
+//!
+//! - [`BucketConfig::try_new`] / [`WindowConfig::try_new`] return a
+//!   [`Result`] so callers can handle invalid parameters.
+//! - [`BucketConfig::new`] / [`WindowConfig::new`] panic on invalid input —
+//!   convenient for tests and at the top of `fn main`. For `const` contexts,
+//!   use [`BucketConfig::from_raw`] / [`WindowConfig::from_raw`] after
+//!   validating the inputs yourself.
+
 pub mod chooser;
 pub mod fixed_window;
 pub mod leaky_bucket;
@@ -9,19 +106,48 @@ pub use fixed_window::FixedWindow;
 pub use leaky_bucket::LeakyBucket;
 pub use sliding_window::SlidingWindow;
 pub use token_bucket::TokenBucket;
-pub use types::{Algorithm, BucketConfig, RateLimitResult, RateLimiter, WindowConfig};
+pub use types::{Algorithm, BucketConfig, ConfigError, RateLimitResult, RateLimiter, WindowConfig};
 
 use std::sync::Arc;
 
+/// A composition of independent rate limiters that all see every check.
+///
+/// On every call, the suite invokes every limiter and returns the most
+/// restrictive [`RateLimitResult`] (smallest `remaining`, or the first
+/// denial).
+///
+/// ```
+/// use std::time::Duration;
+/// use speedemon::{RateLimiterSuite, RateLimiter, BucketConfig, WindowConfig};
+///
+/// let suite = RateLimiterSuite::builder()
+///     .token_bucket(BucketConfig::new(100, 10.0))
+///     .fixed_window(WindowConfig::new(5, Duration::from_secs(60)))
+///     .build();
+///
+/// // The first 5 succeed; the 6th is denied by fixed_window even though
+/// // token_bucket still has plenty of headroom.
+/// for _ in 0..5 {
+///     assert!(suite.check("client1").allowed);
+/// }
+/// assert!(!suite.check("client1").allowed);
+/// ```
+#[derive(Debug, Default)]
 pub struct RateLimiterSuite {
     limiters: Vec<Arc<dyn RateLimiter>>,
 }
 
 impl RateLimiterSuite {
     pub fn builder() -> RateLimiterSuiteBuilder {
-        RateLimiterSuiteBuilder {
-            limiters: Vec::new(),
-        }
+        RateLimiterSuiteBuilder::default()
+    }
+
+    /// A suite with no limiters installed.
+    ///
+    /// An empty suite always reports `allowed = true` and `remaining = 0`
+    /// for every check.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn check(&self, key: &str) -> RateLimitResult {
@@ -61,6 +187,13 @@ impl RateLimiterSuite {
     }
 }
 
+impl AsRef<[Arc<dyn RateLimiter>]> for RateLimiterSuite {
+    fn as_ref(&self) -> &[Arc<dyn RateLimiter>] {
+        &self.limiters
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct RateLimiterSuiteBuilder {
     limiters: Vec<Arc<dyn RateLimiter>>,
 }

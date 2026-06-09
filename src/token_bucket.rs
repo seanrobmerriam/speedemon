@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::types::{Algorithm, BucketConfig, RateLimitResult, RateLimiter};
 
+#[derive(Debug)]
 struct BucketState {
     tokens: f64,
     last_refill: Instant,
@@ -48,6 +49,22 @@ impl BucketState {
     }
 }
 
+/// Token-bucket rate limiter.
+///
+/// Allows bursts up to `capacity`, refilling at `refill_rate` tokens per
+/// second. Each successful check decrements one token; denied checks do not
+/// consume tokens.
+///
+/// ```
+/// use speedemon::{TokenBucket, RateLimiter, BucketConfig};
+///
+/// let limiter = TokenBucket::new(BucketConfig::new(3, 1.0));
+/// for _ in 0..3 {
+///     assert!(limiter.check("client1").allowed);
+/// }
+/// assert!(!limiter.check("client1").allowed);
+/// ```
+#[derive(Debug)]
 pub struct TokenBucket {
     config: BucketConfig,
     buckets: Mutex<HashMap<String, BucketState>>,

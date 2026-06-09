@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::types::{Algorithm, RateLimitResult, RateLimiter, WindowConfig};
 
+#[derive(Debug)]
 struct WindowState {
     timestamps: VecDeque<Instant>,
 }
@@ -56,6 +57,21 @@ impl WindowState {
     }
 }
 
+/// Sliding-window rate limiter.
+///
+/// Tracks individual request timestamps per key and admits a request only
+/// if the trailing `window_size` contains fewer than `max_requests`.
+///
+/// ```
+/// use std::time::Duration;
+/// use speedemon::{SlidingWindow, RateLimiter, WindowConfig};
+///
+/// let limiter = SlidingWindow::new(WindowConfig::new(2, Duration::from_secs(60)));
+/// assert!(limiter.check("client1").allowed);
+/// assert!(limiter.check("client1").allowed);
+/// assert!(!limiter.check("client1").allowed);
+/// ```
+#[derive(Debug)]
 pub struct SlidingWindow {
     config: WindowConfig,
     windows: Mutex<HashMap<String, WindowState>>,

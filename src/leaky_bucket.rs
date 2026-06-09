@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::types::{Algorithm, BucketConfig, RateLimitResult, RateLimiter};
 
+#[derive(Debug)]
 struct LeakyState {
     queue: VecDeque<Instant>,
     last_leak: Instant,
@@ -62,6 +63,20 @@ impl LeakyState {
     }
 }
 
+/// Leaky-bucket rate limiter with constant outflow.
+///
+/// Requests are queued and admitted at most `capacity` at a time. The queue
+/// drains at `refill_rate` items per second.
+///
+/// ```
+/// use speedemon::{LeakyBucket, RateLimiter, BucketConfig};
+///
+/// let limiter = LeakyBucket::new(BucketConfig::new(2, 1.0));
+/// assert!(limiter.check("client1").allowed);
+/// assert!(limiter.check("client1").allowed);
+/// assert!(!limiter.check("client1").allowed);
+/// ```
+#[derive(Debug)]
 pub struct LeakyBucket {
     config: BucketConfig,
     buckets: Mutex<HashMap<String, LeakyState>>,

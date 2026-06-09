@@ -55,16 +55,12 @@ fn build_components() -> (Vec<Arc<dyn RateLimiter>>, Arc<LinUCBBandit>, Arc<Feat
 
     let bandit = Arc::new(LinUCBBandit::new(
         algorithms.len(),
-        BanditConfig {
-            alpha: 1.0,
-            lazy_inversion_threshold: 1,
-            regularization: 1.0,
-        },
+        BanditConfig::with(1.0, 1, 1.0),
     ));
-    let features = Arc::new(FeatureExtractor::new(FeatureConfig {
-        rate_ceiling: 5_000.0,
-        max_concurrency: 1_000.0,
-    }));
+    let features = Arc::new(FeatureExtractor::new(FeatureConfig::with(
+        5_000.0,
+        1_000.0,
+    )));
 
     (algorithms, bandit, features)
 }
@@ -220,11 +216,7 @@ async fn scenario_b_mixed_clients() {
     let make_bandit = || {
         Arc::new(LinUCBBandit::new(
             algorithms.len(),
-            BanditConfig {
-                alpha: 0.5,
-                lazy_inversion_threshold: 1,
-                regularization: 1.0,
-            },
+            BanditConfig::with(0.5, 1, 1.0),
         ))
     };
 
