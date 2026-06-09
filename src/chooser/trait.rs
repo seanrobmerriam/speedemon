@@ -32,6 +32,9 @@ pub struct RequestContext {
 
 impl RequestContext {
     pub fn key(&self) -> String {
+        // Note: keys are implicitly `client_`-prefixed. If you ever call the
+        // legacy limiters directly with raw string keys, prefix them with
+        // `client_` to stay in this key space (e.g. `"client_raw_id"`).
         format!("client_{}", self.client_id)
     }
 }

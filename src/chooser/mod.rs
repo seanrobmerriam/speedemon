@@ -38,6 +38,7 @@ impl AlgorithmChooser {
             decision: dec,
             latency_ns: lat,
             false_positive: None,
+            false_negative: None,
         }));
 
         dec
@@ -47,6 +48,13 @@ impl AlgorithmChooser {
         let _ = self.reward_tx.try_send(ObserverMessage::SignalFalsePositive {
             event_id,
             is_fp,
+        });
+    }
+
+    pub fn signal_false_negative(&self, event_id: u64, is_fn: bool) {
+        let _ = self.reward_tx.try_send(ObserverMessage::SignalFalseNegative {
+            event_id,
+            is_fn,
         });
     }
 
@@ -206,32 +214,52 @@ mod tests {
 
     #[tokio::test]
     async fn chooser_bandit_learns() {
+        // Asymmetric setup: token_bucket allows generously (goodput reward
+        // ~1.0); fixed_window with capacity 1 over 60s throttles almost
+        // every subsequent request for the same client (goodput ~0.0).
+        // After enough events, the bandit should overwhelmingly prefer
+        // arm 0 (token_bucket).
         let config = BanditConfig {
-            alpha: 0.1,
+            alpha: 0.05,
             lazy_inversion_threshold: 1,
             regularization: 1.0,
         };
 
         let (chooser, handle) = AlgorithmChooserBuilder::new()
             .add_algorithm(Arc::new(TokenBucketAdapter::new(BucketConfig::new(
-                1000, 100.0,
+                1000, 1000.0,
             ))))
             .add_algorithm(Arc::new(FixedWindowAdapter::new(WindowConfig::new(
-                1000,
+                1,
                 Duration::from_secs(60),
             ))))
             .bandit_config(config)
             .build();
 
-        for i in 0..200 {
+        for i in 0..200u64 {
             let ctx = make_ctx(i % 10);
             chooser.check(&ctx);
         }
 
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let ctx = make_ctx(999);
-        let _ = chooser.check(&ctx);
+        let mut arm0_count = 0;
+        let probes = 50;
+        for i in 200..(200 + probes) {
+            let ctx = make_ctx(i);
+            let x = chooser.features().extract(&ctx);
+            let arm = chooser.bandit().select(&x);
+            if arm == 0 {
+                arm0_count += 1;
+            }
+        }
+
+        assert!(
+            arm0_count >= probes * 4 / 5,
+            "expected arm 0 (token_bucket) selected >= 80% after training, got {}/{}",
+            arm0_count,
+            probes
+        );
 
         drop(chooser);
         let _ = handle.await;
@@ -268,6 +296,25 @@ mod tests {
         chooser.check(&ctx);
 
         chooser.signal_false_positive(0, true);
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        drop(chooser);
+        let _ = handle.await;
+    }
+
+    #[tokio::test]
+    async fn chooser_signal_false_negative() {
+        let (chooser, handle) = AlgorithmChooserBuilder::new()
+            .add_algorithm(Arc::new(TokenBucketAdapter::new(BucketConfig::new(
+                10, 1.0,
+            ))))
+            .build();
+
+        let ctx = make_ctx(1);
+        chooser.check(&ctx);
+
+        chooser.signal_false_negative(0, true);
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 

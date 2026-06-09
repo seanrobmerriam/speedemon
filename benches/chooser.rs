@@ -2,14 +2,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use rate_limiter_suite::chooser::bandit::{BanditConfig, LinUCBBandit};
-use rate_limiter_suite::chooser::features::{FeatureConfig, FeatureExtractor, FEATURE_DIM};
-use rate_limiter_suite::chooser::r#trait::{
+use speedemon::chooser::bandit::{BanditConfig, LinUCBBandit};
+use speedemon::chooser::features::{FeatureConfig, FeatureExtractor, FEATURE_DIM};
+use speedemon::chooser::r#trait::{
     ClientClass, Decision, FixedWindowAdapter, LeakyBucketAdapter, RateLimiter, RequestContext,
     SlidingWindowAdapter, TokenBucketAdapter,
 };
-use rate_limiter_suite::chooser::AlgorithmChooserBuilder;
-use rate_limiter_suite::types::{BucketConfig, WindowConfig};
+use speedemon::chooser::AlgorithmChooserBuilder;
+use speedemon::types::{BucketConfig, WindowConfig};
 
 fn warm_request_context(client_id: u64, ts_ns: u64) -> RequestContext {
     RequestContext {
@@ -24,7 +24,7 @@ fn warm_request_context(client_id: u64, ts_ns: u64) -> RequestContext {
 /// Build the chooser on a dedicated tokio runtime so the observer task can
 /// be spawned, then drop the runtime handle (the observer task keeps running
 /// on a worker thread for the lifetime of the chooser).
-fn build_warm_chooser() -> rate_limiter_suite::chooser::AlgorithmChooser {
+fn build_warm_chooser() -> speedemon::chooser::AlgorithmChooser {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()

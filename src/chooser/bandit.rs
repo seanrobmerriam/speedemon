@@ -27,6 +27,7 @@ struct ArmState {
     a_inv: DMatrix<f64>,
     theta: DVector<f64>,
     updates_since_inversion: usize,
+    total_updates: usize,
 }
 
 impl ArmState {
@@ -42,6 +43,7 @@ impl ArmState {
             a_inv,
             theta,
             updates_since_inversion: 0,
+            total_updates: 0,
         }
     }
 
@@ -58,6 +60,7 @@ impl ArmState {
         self.a += outer;
         self.b += x * reward;
         self.updates_since_inversion += 1;
+        self.total_updates += 1;
 
         if self.updates_since_inversion >= lazy_threshold {
             self.recompute_inverse();
@@ -65,6 +68,12 @@ impl ArmState {
     }
 
     fn ucb(&self, x: &DVector<f64>, alpha: f64) -> f64 {
+        // Note: `theta` is only refreshed inside `recompute_inverse` (lazy
+        // inversion), so between inversions the exploitation term uses a
+        // slightly stale parameter vector while the exploration term uses a
+        // fresh `a_inv`. The bias is bounded by the inversion threshold and
+        // acceptable for a prototype; for strict consistency, either refresh
+        // theta on every read or take a write lock here.
         let exploitation = self.theta.dot(x);
         let a_inv_x = &self.a_inv * x;
         let exploration = alpha * x.dot(&a_inv_x).max(0.0).sqrt();
@@ -115,6 +124,11 @@ impl LinUCBBandit {
 
     pub fn num_arms(&self) -> usize {
         self.arms.len()
+    }
+
+    #[cfg(test)]
+    pub fn update_count(&self, arm_idx: usize) -> usize {
+        self.arms[arm_idx].read().unwrap().total_updates
     }
 }
 

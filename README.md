@@ -1,4 +1,4 @@
-# Rate Limiter Suite
+# Speedemon Rate Limiter Suite
 
 A modern, thread-safe rate limiting library for Rust featuring four industry-standard algorithms with composable multi-limiter support.
 
@@ -23,13 +23,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rate-limiter-suite = "0.1.0"
+speedemon = "0.1.0"
 ```
 
 ## Quick Start
 
 ```rust
-use rate_limiter_suite::{RateLimiterSuite, BucketConfig, WindowConfig};
+use speedemon::{RateLimiterSuite, BucketConfig, WindowConfig};
 use std::time::Duration;
 
 fn main() {
@@ -58,7 +58,7 @@ fn main() {
 Allows controlled bursts up to bucket capacity with continuous token refill.
 
 ```rust
-use rate_limiter_suite::{TokenBucket, BucketConfig, RateLimiter};
+use speedemon::{TokenBucket, BucketConfig, RateLimiter};
 
 let limiter = TokenBucket::new(BucketConfig::new(
     100,   // capacity (burst size)
@@ -75,7 +75,7 @@ let result = limiter.check("client1");
 Processes requests at a constant rate, smoothing traffic spikes.
 
 ```rust
-use rate_limiter_suite::{LeakyBucket, BucketConfig, RateLimiter};
+use speedemon::{LeakyBucket, BucketConfig, RateLimiter};
 
 let limiter = LeakyBucket::new(BucketConfig::new(
     50,   // queue capacity
@@ -92,7 +92,7 @@ let result = limiter.check("client1");
 Tracks individual request timestamps for precise rolling window enforcement.
 
 ```rust
-use rate_limiter_suite::{SlidingWindow, WindowConfig, RateLimiter};
+use speedemon::{SlidingWindow, WindowConfig, RateLimiter};
 use std::time::Duration;
 
 let limiter = SlidingWindow::new(WindowConfig::new(
@@ -110,7 +110,7 @@ let result = limiter.check("client1");
 Counts requests within fixed time buckets (e.g., per minute, per hour).
 
 ```rust
-use rate_limiter_suite::{FixedWindow, WindowConfig, RateLimiter};
+use speedemon::{FixedWindow, WindowConfig, RateLimiter};
 use std::time::Duration;
 
 let limiter = FixedWindow::new(WindowConfig::new(
@@ -128,7 +128,7 @@ let result = limiter.check("client1");
 The `RateLimiterSuite` evaluates requests against all configured limiters. The most restrictive result wins:
 
 ```rust
-use rate_limiter_suite::{RateLimiterSuite, BucketConfig, WindowConfig};
+use speedemon::{RateLimiterSuite, BucketConfig, WindowConfig};
 use std::time::Duration;
 
 let suite = RateLimiterSuite::builder()
@@ -256,12 +256,12 @@ arm yields the highest reward for each context and routes accordingly.
 
 ```rust
 use std::sync::Arc;
-use rate_limiter_suite::chooser::r#trait::{
+use speedemon::chooser::r#trait::{
     TokenBucketAdapter, LeakyBucketAdapter, SlidingWindowAdapter, FixedWindowAdapter,
     ClientClass, RequestContext,
 };
-use rate_limiter_suite::chooser::{AlgorithmChooserBuilder, Decision};
-use rate_limiter_suite::types::{BucketConfig, WindowConfig};
+use speedemon::chooser::{AlgorithmChooserBuilder, Decision};
+use speedemon::types::{BucketConfig, WindowConfig};
 use std::time::Duration;
 
 let (chooser, _handle) = AlgorithmChooserBuilder::new()

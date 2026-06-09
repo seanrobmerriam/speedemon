@@ -1,13 +1,13 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rate_limiter_suite::chooser::bandit::{BanditConfig, LinUCBBandit};
-use rate_limiter_suite::chooser::features::{FeatureConfig, FeatureExtractor};
-use rate_limiter_suite::chooser::r#trait::{
+use speedemon::chooser::bandit::{BanditConfig, LinUCBBandit};
+use speedemon::chooser::features::{FeatureConfig, FeatureExtractor};
+use speedemon::chooser::r#trait::{
     ClientClass, Decision, FixedWindowAdapter, LeakyBucketAdapter, RateLimiter, RequestContext,
     SlidingWindowAdapter, TokenBucketAdapter,
 };
-use rate_limiter_suite::types::{BucketConfig, WindowConfig};
+use speedemon::types::{BucketConfig, WindowConfig};
 
 fn ctx(
     client_id: u64,

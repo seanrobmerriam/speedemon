@@ -66,7 +66,7 @@ impl ClientState {
             .iter()
             .skip(1)
             .zip(self.timestamps.iter())
-            .map(|(&curr, &prev)| (curr.saturating_sub(prev)) as f64)
+            .map(|(&curr, &prev)| (curr.saturating_sub(prev)) as f64 / 1_000_000_000.0)
             .collect();
 
         if inter_arrivals.is_empty() {
@@ -117,6 +117,10 @@ impl FeatureExtractor {
         let time_sin = time_angle.sin();
         let time_cos = time_angle.cos();
 
+        // endpoint_hash is uniform-random per endpoint, so this feature is
+        // effectively noise from the bandit's perspective. Replace with a
+        // learned embedding or a small fixed cardinality (e.g. route group)
+        // when endpoint-level learning is needed.
         let endpoint_norm = (ctx.endpoint_hash as f64) / (u64::MAX as f64);
 
         [
@@ -190,6 +194,27 @@ mod tests {
         let ctx = make_ctx(1, base_ts + 1_100_000_000);
         let features = extractor.extract(&ctx);
         assert!(features[1] >= 0.0);
+    }
+
+    #[test]
+    fn burst_coefficient_is_unitless_at_high_rate() {
+        let extractor = FeatureExtractor::new(FeatureConfig::default());
+
+        let base_ts = 1_000_000_000_000u64;
+        for i in 0u64..200 {
+            let jitter = (i * 17) % 500;
+            let ctx = make_ctx(1, base_ts + i * 1_000_000 + jitter * 1_000);
+            extractor.extract(&ctx);
+        }
+
+        let ctx = make_ctx(1, base_ts + 200_000_000);
+        let features = extractor.extract(&ctx);
+
+        assert!(
+            features[1] < 100.0,
+            "burst coefficient {} should be O(1) for sane feature scaling, not in millions",
+            features[1]
+        );
     }
 
     #[test]
