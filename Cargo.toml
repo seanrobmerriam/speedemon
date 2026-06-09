@@ -1,10 +1,10 @@
 [package]
 name = "speedemon"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A modern, thread-safe rate limiting library for Rust featuring four industry-standard algorithms with composable multi-limiter and contextual bandit-driven algorithm selection."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/sean/speedemon"
+repository = "https://github.com/seanrobmerriam/speedemon"
 readme = "README.md"
 keywords = ["rate-limit", "rate-limiter", "throttle", "token-bucket", "sliding-window"]
 categories = ["algorithms", "concurrency", "network-programming"]
