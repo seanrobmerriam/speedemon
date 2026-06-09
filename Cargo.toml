@@ -1,0 +1,19 @@
+[package]
+name = "speedemon"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dashmap = "6.1"
+nalgebra = "0.33"
+tokio = { version = "1.42", features = ["rt-multi-thread", "sync", "time", "macros"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "chooser"
+harness = false
+
+
+
